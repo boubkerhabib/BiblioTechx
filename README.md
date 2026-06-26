@@ -7,7 +7,8 @@ API REST de gestion de catalogue de livres pour une bibliothèque municipale.
 - Node.js
 - Express.js
 - PostgreSQL
-- Bibliothèque `pg`
+- Bibliothèque `pg` (sans ORM)
+- `dotenv` pour la configuration
 
 ## Installation
 
@@ -19,37 +20,46 @@ cd BiblioTech
 npm install
 ```
 
+## Configuration
+
+Copier le fichier `.env.example` vers `.env` et modifier les identifiants :
+
+```bash
+cp .env.example .env
+```
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=bibliotech
+PORT=3000
+```
+
 ## Base de données
 
 ```bash
 # 1. Créer la base de données PostgreSQL
 psql -U postgres -c "CREATE DATABASE bibliotech;"
 
-# 2. Créer la table et insérer des données de test
-psql -U postgres -d bibliotech -f db.sql
-```
-
-**Configuration** : Modifier les identifiants de connexion dans `server.js` :
-
-```js
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'bibliotech',
-  password: 'votre_mot_de_passe',
-  port: 5432,
-});
+# 2. Créer la table et insérer les données de démonstration
+psql -U postgres -d bibliotech -f database.sql
 ```
 
 ## Lancement
 
 ```bash
+# Mode production
 npm start
+
+# Mode développement (avec rechargement automatique)
+npm run dev
 ```
 
 Le serveur démarre sur `http://localhost:3000`.
 
-## Endpoints
+## Endpoints de l'API
 
 ### CRUD Livres
 
@@ -58,7 +68,7 @@ Le serveur démarre sur `http://localhost:3000`.
 | GET | `/livres` | Liste tous les livres |
 | GET | `/livres?disponible=true` | Filtrer par disponibilité |
 | GET | `/livres/:id` | Détail d'un livre |
-| GET | `/livres/search?categorie=Romans` | Recherche par catégorie |
+| GET | `/livres/search?categorie=Roman` | Recherche par catégorie |
 | POST | `/livres` | Ajouter un livre |
 | PUT | `/livres/:id` | Modifier un livre |
 | DELETE | `/livres/:id` | Supprimer un livre |
@@ -69,7 +79,7 @@ Le serveur démarre sur `http://localhost:3000`.
 |---------|----------|-------------|
 | GET | `/stats/total` | Nombre total de livres |
 
-## Exemples de requêtes (Postman / cURL)
+## Exemples de requêtes (cURL)
 
 ### Ajouter un livre
 
@@ -93,7 +103,7 @@ curl -X PUT http://localhost:3000/livres/1 \
   -d '{
     "titre": "Le Petit Prince",
     "auteur": "Antoine de Saint-Exupéry",
-    "categorie": "Romans",
+    "categorie": "Jeunesse",
     "annee_publication": 1943,
     "disponible": false
   }'
@@ -108,7 +118,13 @@ curl -X DELETE http://localhost:3000/livres/1
 ### Rechercher par catégorie
 
 ```bash
-curl http://localhost:3000/livres/search?categorie=Romans
+curl http://localhost:3000/livres/search?categorie=Roman
+```
+
+### Filtrer par disponibilité
+
+```bash
+curl http://localhost:3000/livres?disponible=true
 ```
 
 ### Compter les livres
@@ -121,8 +137,10 @@ curl http://localhost:3000/stats/total
 
 ```
 BiblioTech/
-├── node_modules/
-├── db.sql
+├── .env.example
+├── .gitignore
+├── database.sql
+├── db.js
 ├── package.json
 ├── README.md
 └── server.js

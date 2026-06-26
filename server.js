@@ -1,26 +1,57 @@
 const express = require('express');
-const { Pool } = require('pg');
+const pool = require('./db');
 
 const app = express();
-
 app.use(express.json());
-
-// Connexion à PostgreSQL
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'bibliotech',
-  password: '123456',
-  port: 5432,
-});
 
 // ==================== CRUD PRINCIPAL ====================
 
-// GET /livres?disponible=true — Liste avec filtre optionnel
+// POST /livres — Ajouter un livre
+app.post('/livres', async (req, res) => {
+  try {
+    const { titre, auteur, categorie, annee_publication, disponible } = req.body;
+
+    // Validation des champs obligatoires
+    if (!titre || !auteur || !categorie || annee_publication == null) {
+      return res.status(400).json({
+        message: 'Champs obligatoires : titre, auteur, categorie, annee_publication',
+      });
+    }
+
+    if (typeof annee_publication !== 'number' || !Number.isInteger(annee_publication)) {
+      return res.status(400).json({
+        message: 'annee_publication doit être un nombre entier',
+      });
+    }
+
+    const [titreN, auteurN, categorieN] = [titre, auteur, categorie].map(s => s.trim());
+    if (!titreN || !auteurN || !categorieN) {
+      return res.status(400).json({
+        message: 'Les champs titre, auteur et categorie ne peuvent pas être vides',
+      });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO livres (titre, auteur, categorie, annee_publication, disponible)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [titreN, auteurN, categorieN, annee_publication, disponible ?? true]
+    );
+
+    res.status(201).json({
+      message: 'Livre créé avec succès',
+      livre: result.rows[0],
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+// GET /livres — Liste tous les livres (avec filtre disponibilité optionnel)
 app.get('/livres', async (req, res) => {
   try {
     const { disponible } = req.query;
-
     let query = 'SELECT * FROM livres';
     const params = [];
 
@@ -40,7 +71,7 @@ app.get('/livres', async (req, res) => {
   }
 });
 
-// GET /livres/search?categorie=Romans — Recherche par catégorie
+// GET /livres/search?categorie=Roman — Recherche par catégorie
 app.get('/livres/search', async (req, res) => {
   try {
     const { categorie } = req.query;
@@ -61,40 +92,22 @@ app.get('/livres/search', async (req, res) => {
   }
 });
 
-// GET /livres/:id — Un livre par ID
+// GET /livres/:id — Détail d'un livre
 app.get('/livres/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const result = await pool.query(
-      'SELECT * FROM livres WHERE id = $1',
-      [id]
-    );
+    if (!id || isNaN(id) || !Number.isInteger(Number(id))) {
+      return res.status(400).json({ message: 'ID invalide' });
+    }
+
+    const result = await pool.query('SELECT * FROM livres WHERE id = $1', [id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Livre introuvable' });
     }
 
     res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Erreur serveur' });
-  }
-});
-
-// POST /livres — Ajouter un livre
-app.post('/livres', async (req, res) => {
-  try {
-    const { titre, auteur, categorie, annee_publication, disponible } = req.body;
-
-    const result = await pool.query(
-      `INSERT INTO livres (titre, auteur, categorie, annee_publication, disponible)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [titre, auteur, categorie, annee_publication, disponible ?? true]
-    );
-
-    res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -107,6 +120,30 @@ app.put('/livres/:id', async (req, res) => {
     const { id } = req.params;
     const { titre, auteur, categorie, annee_publication, disponible } = req.body;
 
+    if (!id || isNaN(id) || !Number.isInteger(Number(id))) {
+      return res.status(400).json({ message: 'ID invalide' });
+    }
+
+    // Validation des champs obligatoires
+    if (!titre || !auteur || !categorie || annee_publication == null) {
+      return res.status(400).json({
+        message: 'Champs obligatoires : titre, auteur, categorie, annee_publication',
+      });
+    }
+
+    if (typeof annee_publication !== 'number' || !Number.isInteger(annee_publication)) {
+      return res.status(400).json({
+        message: 'annee_publication doit être un nombre entier',
+      });
+    }
+
+    const [titreN, auteurN, categorieN] = [titre, auteur, categorie].map(s => s.trim());
+    if (!titreN || !auteurN || !categorieN) {
+      return res.status(400).json({
+        message: 'Les champs titre, auteur et categorie ne peuvent pas être vides',
+      });
+    }
+
     const result = await pool.query(
       `UPDATE livres
        SET titre = $1,
@@ -116,14 +153,17 @@ app.put('/livres/:id', async (req, res) => {
            disponible = $5
        WHERE id = $6
        RETURNING *`,
-      [titre, auteur, categorie, annee_publication, disponible, id]
+      [titreN, auteurN, categorieN, annee_publication, disponible ?? true, id]
     );
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Livre introuvable' });
     }
 
-    res.json(result.rows[0]);
+    res.json({
+      message: 'Livre modifié avec succès',
+      livre: result.rows[0],
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Erreur serveur' });
@@ -134,6 +174,10 @@ app.put('/livres/:id', async (req, res) => {
 app.delete('/livres/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!id || isNaN(id) || !Number.isInteger(Number(id))) {
+      return res.status(400).json({ message: 'ID invalide' });
+    }
 
     const result = await pool.query(
       'DELETE FROM livres WHERE id = $1 RETURNING *',
@@ -164,7 +208,16 @@ app.get('/stats/total', async (req, res) => {
   }
 });
 
-// Démarrage du serveur
-app.listen(3000, () => {
-  console.log('✅ Serveur BiblioTech démarré sur http://localhost:3000');
+// ==================== GESTION 404 ====================
+
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route introuvable' });
+});
+
+// ==================== DÉMARRAGE ====================
+
+const PORT = parseInt(process.env.PORT, 10) || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Serveur BiblioTech démarré sur http://localhost:${PORT}`);
 });
